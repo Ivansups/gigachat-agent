@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { ChatRequest, ChatResponse } from "@gigachat-agent/core";
 import type { OpencodeRunOptions, OpencodeRunResult } from "./opencode.js";
 
@@ -15,6 +15,7 @@ export interface HandlerDeps {
   runOpencode(options: OpencodeRunOptions): Promise<OpencodeRunResult>;
   listOpencodeModels(): Promise<string[]>;
   readFile(path: string): Promise<string>;
+  realpath(path: string): Promise<string>;
   /** Files and working directories must stay inside this directory. */
   root: string;
   /** Default `provider/model` for agent runs. */
@@ -50,20 +51,32 @@ export interface Handlers {
 
 /** Builds the tool implementations on top of injected dependencies. */
 export function createHandlers(deps: HandlerDeps): Handlers {
+  const isOutside = (root: string, path: string): boolean => {
+    const rel = relative(root, path);
+    return rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+  };
+
   const inside = (path: string): string => {
     const absolute = resolve(deps.root, path);
-    const rel = relative(deps.root, absolute);
-    if (rel.startsWith("..") || isAbsolute(rel)) {
+    if (isOutside(deps.root, absolute)) {
       throw new Error(`Path is outside the allowed root (${deps.root}): ${path}`);
     }
     return absolute;
+  };
+
+  const insideReal = async (path: string): Promise<string> => {
+    const [realRoot, real] = await Promise.all([deps.realpath(deps.root), deps.realpath(inside(path))]);
+    if (isOutside(realRoot, real)) {
+      throw new Error(`Path is outside the allowed root (${deps.root}): ${path}`);
+    }
+    return real;
   };
 
   const agentRun = async (args: AgentArgs & { sessionId?: string }): Promise<string> => {
     const result = await deps.runOpencode({
       prompt: args.prompt,
       model: args.model ?? deps.agentModel,
-      cwd: inside(args.cwd ?? deps.root),
+      cwd: await insideReal(args.cwd ?? deps.root),
       timeoutMs: Math.min(args.timeout_ms ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS),
       allowWrite: args.allow_write === true,
       ...(args.agent ? { agent: args.agent } : {}),

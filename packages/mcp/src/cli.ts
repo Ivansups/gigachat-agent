@@ -74,6 +74,7 @@ async function main(): Promise<void> {
       return stdout.split("\n").filter(Boolean);
     },
     readFile: (path) => readInsideRoot(root, path),
+    realpath,
     root,
     agentModel: process.env["GIGACHAT_AGENT_MODEL"] ?? "GigaChat (Sberbank)/GigaChat",
   });

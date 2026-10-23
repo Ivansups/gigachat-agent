@@ -14,11 +14,21 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     runOpencode: vi.fn(async () => ({ text: "agent says", sessionId: "ses_1", exitCode: 0 })),
     listOpencodeModels: vi.fn(async () => ["opencode/big-pickle"]),
     readFile: vi.fn(async (path: string) => `content of ${path}`),
+    realpath: vi.fn(async (path: string) => path),
     root: "/repo",
     agentModel: "GigaChat (Sberbank)/GigaChat",
     ...overrides,
   };
 }
+
+describe("cwd confinement", () => {
+  it("refuses a cwd that is a symlink pointing outside the root", async () => {
+    const d = deps({ realpath: vi.fn(async (path: string) => (path === "/repo/link" ? "/etc" : path)) });
+
+    await expect(createHandlers(d).runAgent({ prompt: "x", cwd: "/repo/link" })).rejects.toThrow(/outside/);
+    expect(d.runOpencode).not.toHaveBeenCalled();
+  });
+});
 
 describe("ask", () => {
   it("sends the prompt to GigaChat directly and returns the answer", async () => {
