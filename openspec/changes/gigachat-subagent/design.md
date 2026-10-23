@@ -44,7 +44,7 @@ Constraint from the owner: no permanent background process; MCP over stdio; usab
 
 ## Open Questions
 
-- Real per-model context limits and the business scope name (`B2B` vs `CORP`).
-- Whether the opencode plugin API allows a custom `fetch`/auth flow without a virtual base URL trick.
-- Exact `opencode run` flags and JSON event shape in the installed version.
+- RESOLVED: context is 128 000 tokens per official model pages; scopes are PERS, B2B (prepaid packages) and CORP (pay-as-you-go). Output limit is not published.
+- RESOLVED: the plugin API allows a custom `fetch` through the auth `loader`; the virtual base URL is only a placeholder. Verified on opencode 1.18.29. Note: the loader only runs when credentials are stored in the auth store, and undici must not be bundled into the plugin because it breaks loading under Bun.
+- PARTIAL: flags confirmed from `opencode run --help` (1.18.29); `step_start` and `error` events seen live, the `text` event shape is still an assumption.
 - Which MCP clients to cover in end-to-end tests beyond Claude Code (Codex, Cursor, opencode).

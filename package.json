@@ -6,10 +6,14 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:plugin": "esbuild packages/opencode-plugin/src/index.ts --bundle --platform=node --format=esm --external:undici --outfile=packages/opencode-plugin/dist/gigachat-plugin.js --log-level=warning",
+    "build:mcp": "esbuild packages/mcp/src/cli.ts --bundle --platform=node --format=esm --outfile=packages/mcp/dist/cli.mjs --external:undici --external:@modelcontextprotocol/sdk --external:zod --log-level=warning",
+    "build": "pnpm build:plugin && pnpm build:mcp"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.0",
