@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# GigaChat token cache and CA bundles
+token.json
+*.pem
+
+.DS_Store
