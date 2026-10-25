@@ -1,16 +1,45 @@
 {
-  "name": "@gigachat-agent/mcp",
-  "version": "0.0.0",
-  "private": true,
+  "name": "gigachat-agent-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets Claude Code, Codex, Cursor and opencode delegate tasks to Sber GigaChat (ask, run_agent, continue_session, list_models).",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "gigachat",
+    "sber",
+    "claude-code",
+    "opencode",
+    "subagent"
+  ],
+  "homepage": "https://github.com/Ivansups/gigachat-agent#readme",
+  "bugs": {
+    "url": "https://github.com/Ivansups/gigachat-agent/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ivansups/gigachat-agent.git"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "type": "module",
-  "main": "src/index.ts",
+  "bin": {
+    "gigachat-agent-mcp": "dist/cli.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "prepack": "pnpm -w build:mcp"
   },
   "dependencies": {
-    "@gigachat-agent/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "undici": "^8.12.3",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@gigachat-agent/core": "workspace:*"
   }
 }

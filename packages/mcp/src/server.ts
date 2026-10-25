@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import manifest from "../package.json" with { type: "json" };
 import type { Handlers } from "./handlers.js";
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -22,7 +23,7 @@ const runShape = {
 
 /** Registers the GigaChat tools on a new MCP server. */
 export function createServer(handlers: Handlers): McpServer {
-  const server = new McpServer({ name: "gigachat-agent", version: "0.0.0" });
+  const server = new McpServer({ name: "gigachat-agent", version: manifest.version });
 
   server.registerTool(
     "ask",

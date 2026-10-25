@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -57,6 +58,9 @@ describe("stdio MCP server", () => {
 
     expect(tools.map((t) => t.name).sort()).toEqual(["ask", "continue_session", "list_models", "run_agent"]);
     expect(typeof pid).toBe("number");
+
+    const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+    expect(client.getServerVersion()?.version).toBe(manifest.version);
 
     await client.close();
     await new Promise((resolve) => setTimeout(resolve, 300));

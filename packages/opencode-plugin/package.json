@@ -1,17 +1,37 @@
 {
-  "name": "@gigachat-agent/opencode-plugin",
-  "version": "0.0.0",
-  "private": true,
+  "name": "opencode-gigachat",
+  "version": "0.1.0",
+  "description": "opencode plugin that adds Sber GigaChat as a provider, with automatic best-available model selection.",
+  "license": "MIT",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "gigachat",
+    "sber"
+  ],
+  "homepage": "https://github.com/Ivansups/gigachat-agent#readme",
+  "bugs": {
+    "url": "https://github.com/Ivansups/gigachat-agent/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ivansups/gigachat-agent.git"
+  },
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/gigachat-plugin.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "prepack": "pnpm -w build:plugin"
   },
   "dependencies": {
-    "@gigachat-agent/core": "workspace:*",
     "undici": "^8.12.3"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "1.4.3"
+    "@opencode-ai/plugin": "1.4.3",
+    "@gigachat-agent/core": "workspace:*"
   }
 }
