@@ -26,6 +26,13 @@ describe("resolveCredentials", () => {
     ).toEqual({ scope: "GIGACHAT_API_CORP", credentials: "ZW52" });
   });
 
+  it("builds the key from client id and secret in the environment", () => {
+    expect(
+      resolveCredentials(undefined, { GIGACHAT_CLIENT_ID: "my-id", GIGACHAT_CLIENT_SECRET: "my-secret" })
+        .credentials,
+    ).toBe(Buffer.from("my-id:my-secret").toString("base64"));
+  });
+
   it("prefers the stored key over the environment", () => {
     const stored = formatStoredKey("GIGACHAT_API_PERS", "c3RvcmVk");
 

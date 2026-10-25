@@ -24,11 +24,11 @@ export function resolveCredentials(
       ? { scope: match[1] as string, credentials: match[2] as string }
       : { scope: DEFAULT_SCOPE, credentials: stored.key };
   }
-  if (env["GIGACHAT_CREDENTIALS"]) {
+  if (env["GIGACHAT_CLIENT_ID"] || env["GIGACHAT_CREDENTIALS"]) {
     const { scope, credentials } = loadConfig(env);
     return { scope, credentials };
   }
   throw new Error(
-    'No GigaChat credentials. Run `opencode providers login --provider "GigaChat (Sberbank)"` or set GIGACHAT_CREDENTIALS.',
+    'No GigaChat credentials. Run `opencode providers login --provider "GigaChat (Sberbank)"` or set GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET.',
   );
 }

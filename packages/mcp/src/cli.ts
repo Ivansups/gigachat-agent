@@ -1,6 +1,5 @@
 import { execFile } from "node:child_process";
 import { readFile, realpath } from "node:fs/promises";
-import { homedir } from "node:os";
 import { relative, isAbsolute } from "node:path";
 import { promisify } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -10,23 +9,13 @@ import {
   createGigaChatFetch,
   defaultCacheDir,
   loadConfig,
+  loadEnvFiles,
 } from "@gigachat-agent/core";
-import { envFileCandidates } from "./env-files.js";
 import { createHandlers } from "./handlers.js";
 import { killActiveRuns, runOpencode } from "./opencode.js";
 import { createServer } from "./server.js";
 
 const run = promisify(execFile);
-
-function loadEnvFiles(): void {
-  for (const file of envFileCandidates(process.env, homedir())) {
-    try {
-      process.loadEnvFile(file);
-    } catch {
-      // file is optional
-    }
-  }
-}
 
 async function readInsideRoot(root: string, path: string): Promise<string> {
   const [realRoot, realFile] = await Promise.all([realpath(root), realpath(path)]);
@@ -38,7 +27,7 @@ async function readInsideRoot(root: string, path: string): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  loadEnvFiles();
+  loadEnvFiles(process.env);
   const root = process.cwd();
   const cacheDir = defaultCacheDir(process.env);
 

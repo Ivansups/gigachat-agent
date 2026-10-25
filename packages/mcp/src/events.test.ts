@@ -1,12 +1,20 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseOpencodeEvents } from "./events.js";
 
-// NOTE: the event shape below is an assumption about `opencode run --format json`.
-// It could not be recorded from a live run (the free model quota was exhausted), so
-// the parser is deliberately tolerant. Re-record fixtures when a provider is available.
 const line = (value: unknown): string => JSON.stringify(value);
 
 describe("parseOpencodeEvents", () => {
+  it("parses a stream recorded from a real opencode 1.18.29 run with a read tool call", () => {
+    const stdout = readFileSync(new URL("./__fixtures__/run-read-tool.jsonl", import.meta.url), "utf8");
+
+    const parsed = parseOpencodeEvents(stdout);
+
+    expect(parsed.text).toBe("secret_word equals banana-42.");
+    expect(parsed.sessionId).toMatch(/^ses_/);
+    expect(parsed.error).toBeUndefined();
+  });
+
   it("collects assistant text and the session id", () => {
     const stdout = [
       line({ type: "step_start", sessionID: "ses_1", part: { type: "step-start" } }),

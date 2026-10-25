@@ -24,7 +24,7 @@ function errorMessage(error: unknown): string {
 
 /**
  * Extracts assistant text, session id and errors from `opencode run --format json` output.
- * The event shape is an unverified assumption, so unknown lines are ignored.
+ * Shape verified against opencode 1.18.29 (see __fixtures__); unknown lines are ignored.
  */
 export function parseOpencodeEvents(stdout: string): ParsedEvents {
   let text = "";

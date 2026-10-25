@@ -1,6 +1,7 @@
 export const PACKAGE_NAME = "@gigachat-agent/core";
 
 export { GigaChatClient, type GigaChatClientOptions, type TokenSource } from "./client.js";
+export { envFileCandidates, loadEnvFiles } from "./env-files.js";
 export { defaultCacheDir, loadConfig, type GigaChatConfig } from "./config.js";
 export { TokenProvider, type TokenProviderOptions } from "./auth/token.js";
 export { buildTlsOptions, createGigaChatFetch, type TlsSettings } from "./auth/tls.js";

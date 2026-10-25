@@ -4,6 +4,7 @@ import {
   TokenProvider,
   createGigaChatFetch,
   defaultCacheDir,
+  loadEnvFiles,
 } from "@gigachat-agent/core";
 import { formatStoredKey, resolveCredentials } from "./credentials.js";
 import { createOpenAIFetch } from "./openai-fetch.js";
@@ -42,6 +43,7 @@ function providerConfig(): Record<string, unknown> {
 /** Builds the opencode plugin that exposes GigaChat as a provider on top of the shared core library. */
 export function createGigaChatPlugin(deps: PluginDeps = {}): Plugin {
   const env = deps.env ?? process.env;
+  if (!deps.env) loadEnvFiles(env);
 
   return async (): Promise<Hooks> => ({
     config: async (config) => {

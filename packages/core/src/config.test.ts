@@ -65,7 +65,27 @@ describe("loadConfig", () => {
     expect(config.authUrl).toBeUndefined();
   });
 
+  it("builds the authorization key from client id and secret", () => {
+    const config = loadConfig({ GIGACHAT_CLIENT_ID: "my-id", GIGACHAT_CLIENT_SECRET: "my-secret" });
+
+    expect(config.credentials).toBe(Buffer.from("my-id:my-secret").toString("base64"));
+  });
+
+  it("prefers client id and secret over a ready authorization key", () => {
+    const config = loadConfig({
+      GIGACHAT_CLIENT_ID: "my-id",
+      GIGACHAT_CLIENT_SECRET: "my-secret",
+      GIGACHAT_CREDENTIALS: "a2V5",
+    });
+
+    expect(config.credentials).toBe(Buffer.from("my-id:my-secret").toString("base64"));
+  });
+
+  it("rejects a client id without a secret", () => {
+    expect(() => loadConfig({ GIGACHAT_CLIENT_ID: "my-id" })).toThrow(/GIGACHAT_CLIENT_SECRET/);
+  });
+
   it("fails clearly when credentials are missing", () => {
-    expect(() => loadConfig({})).toThrow(/GIGACHAT_CREDENTIALS/);
+    expect(() => loadConfig({})).toThrow(/GIGACHAT_CLIENT_ID/);
   });
 });

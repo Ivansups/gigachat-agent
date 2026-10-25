@@ -24,14 +24,27 @@ export interface GigaChatConfig {
 
 const DEFAULT_SCOPE = "GIGACHAT_API_PERS";
 
+/** Client id and secret win; a ready Base64 authorization key is the fallback. */
+function readCredentials(env: Record<string, string | undefined>): string {
+  const clientId = env["GIGACHAT_CLIENT_ID"];
+  const clientSecret = env["GIGACHAT_CLIENT_SECRET"];
+  if (clientId || clientSecret) {
+    if (!clientId || !clientSecret) {
+      throw new Error("GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET must be set together");
+    }
+    return Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  }
+  const key = env["GIGACHAT_CREDENTIALS"];
+  if (!key) {
+    throw new Error("GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET are not set");
+  }
+  return key;
+}
+
 /** Reads GigaChat settings from environment variables; empty values count as unset. */
 export function loadConfig(env: Record<string, string | undefined>): GigaChatConfig {
-  const credentials = env["GIGACHAT_CREDENTIALS"];
-  if (!credentials) {
-    throw new Error("GIGACHAT_CREDENTIALS is not set");
-  }
   return {
-    credentials,
+    credentials: readCredentials(env),
     scope: env["GIGACHAT_SCOPE"] || DEFAULT_SCOPE,
     caBundleFile: env["GIGACHAT_CA_BUNDLE_FILE"] || undefined,
     verifySsl: (env["GIGACHAT_VERIFY_SSL"] || "true").toLowerCase() !== "false",
