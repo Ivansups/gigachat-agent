@@ -48,6 +48,7 @@ async function main(): Promise<void> {
       tokens,
       fetch: fetchImpl,
       ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
+      ...(config.modelPriority ? { modelPriority: config.modelPriority } : {}),
     });
     return client;
   };

@@ -42,6 +42,19 @@ describe("ask", () => {
     );
   });
 
+  it("tells which model answered when the model was chosen automatically", async () => {
+    const d = deps();
+    (d.client.chat as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: "1",
+      model: "GigaChat-2-Pro",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: "answer" } }],
+    });
+
+    const result = await createHandlers(d).ask({ prompt: "hi", model: "GigaChat (Sberbank)/auto" });
+
+    expect(result).toBe("answer\n\n[model: GigaChat-2-Pro]");
+  });
+
   it("adds a system prompt and file contents to the request", async () => {
     const d = deps();
     await createHandlers(d).ask({ prompt: "review", system: "be strict", files: ["/repo/a.ts"] });

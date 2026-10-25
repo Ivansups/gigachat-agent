@@ -5,6 +5,7 @@ import {
   createGigaChatFetch,
   defaultCacheDir,
   loadEnvFiles,
+  parseModelPriority,
 } from "@gigachat-agent/core";
 import { formatStoredKey, resolveCredentials } from "./credentials.js";
 import { createOpenAIFetch } from "./openai-fetch.js";
@@ -14,7 +15,7 @@ export const PROVIDER_ID = "GigaChat (Sberbank)";
 const VIRTUAL_BASE_URL = "https://api.gigachat.local/v1";
 /** Context is 128 000 tokens for GigaChat 2 / 2 Pro / 2 Max per the official model pages; the output limit is not published there, so it stays conservative. */
 const MODEL_LIMITS = { context: 128000, output: 4096 };
-const MODELS = ["GigaChat", "GigaChat-2", "GigaChat-2-Pro", "GigaChat-2-Max", "GigaChat-Pro", "GigaChat-Max"];
+const MODELS = ["auto", "GigaChat", "GigaChat-2", "GigaChat-2-Pro", "GigaChat-2-Max", "GigaChat-Pro", "GigaChat-Max"];
 
 const SCOPES = [
   { label: "Personal (GIGACHAT_API_PERS)", value: "GIGACHAT_API_PERS" },
@@ -93,10 +94,12 @@ export function createGigaChatPlugin(deps: PluginDeps = {}): Plugin {
           fetch: fetchImpl,
           ...(env["GIGACHAT_AUTH_URL"] ? { authUrl: env["GIGACHAT_AUTH_URL"] } : {}),
         });
+        const modelPriority = parseModelPriority(env["GIGACHAT_MODEL_PRIORITY"]);
         const client = new GigaChatClient({
           tokens,
           fetch: fetchImpl,
           ...(env["GIGACHAT_BASE_URL"] ? { baseUrl: env["GIGACHAT_BASE_URL"] } : {}),
+          ...(modelPriority ? { modelPriority } : {}),
         });
         return { apiKey: "gigachat", fetch: createOpenAIFetch(client) };
       },

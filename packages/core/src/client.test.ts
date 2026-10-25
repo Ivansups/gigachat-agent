@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { GigaChatClient } from "./client.js";
+import { AllModelsExhaustedError, GigaChatNetworkError, InsufficientTokensError } from "./errors.js";
 
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -10,7 +11,10 @@ const completion = (content: string): unknown => ({
   usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
 });
 
-function setup(fetchImpl: typeof fetch, extra: { maxInputChars?: number } = {}): {
+function setup(
+  fetchImpl: typeof fetch,
+  extra: { maxInputChars?: number; modelPriority?: string[]; now?: () => number } = {},
+): {
   client: GigaChatClient;
   tokens: { getToken: ReturnType<typeof vi.fn>; invalidate: ReturnType<typeof vi.fn> };
   sleep: ReturnType<typeof vi.fn>;
@@ -176,5 +180,210 @@ describe("GigaChatClient.listModels", () => {
 
     expect(await client.listModels()).toEqual(["GigaChat", "GigaChat-Pro"]);
     expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe("https://api.test/v1/models");
+  });
+});
+
+const payment = (): Response => json({ status: 402, message: "Payment Required" }, 402);
+const user = [{ role: "user" as const, content: "yo" }];
+const sentModels = (fetchMock: ReturnType<typeof vi.fn>): string[] =>
+  fetchMock.mock.calls.map(
+    (call) => (JSON.parse(String((call as unknown as [string, RequestInit])[1].body)) as { model: string }).model,
+  );
+
+describe("GigaChatClient automatic model choice", () => {
+  const priority = ["GigaChat-2-Max", "GigaChat-2-Pro", "GigaChat-2"];
+
+  it("reports an exhausted explicit model unambiguously and does not switch models", async () => {
+    const fetchMock = vi.fn(async () => payment());
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    const error = await client.chat({ model: "GigaChat-2-Max", messages: user }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(InsufficientTokensError);
+    expect((error as InsufficientTokensError).model).toBe("GigaChat-2-Max");
+    expect((error as Error).message).toMatch(/GigaChat-2-Max.*402|402.*GigaChat-2-Max/);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("falls through from the best model to the next one on 402", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(payment()).mockResolvedValueOnce(json(completion("ok")));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    const response = await client.chat({ model: "auto", messages: user });
+
+    expect(sentModels(fetchMock)).toEqual(["GigaChat-2-Max", "GigaChat-2-Pro"]);
+    expect(response.choices[0]?.message.content).toBe("ok");
+  });
+
+  it("remembers an exhausted model for a while instead of probing it on every call", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(payment())
+      .mockImplementation(async () => json(completion("ok")));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    await client.chat({ model: "auto", messages: user });
+    await client.chat({ model: "auto", messages: user });
+
+    expect(sentModels(fetchMock)).toEqual(["GigaChat-2-Max", "GigaChat-2-Pro", "GigaChat-2-Pro"]);
+  });
+
+  it("tries the best model again once the memory expires", async () => {
+    let now = 0;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(payment())
+      .mockImplementation(async () => json(completion("ok")));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority, now: () => now });
+
+    await client.chat({ model: "auto", messages: user });
+    now = 60 * 60 * 1000;
+    await client.chat({ model: "auto", messages: user });
+
+    expect(sentModels(fetchMock)).toEqual(["GigaChat-2-Max", "GigaChat-2-Pro", "GigaChat-2-Max"]);
+  });
+
+  it("names every model when all of them are out of tokens", async () => {
+    const fetchMock = vi.fn(async () => payment());
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    const error = await client.chat({ model: "auto", messages: user }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AllModelsExhaustedError);
+    expect((error as AllModelsExhaustedError).models).toEqual(priority);
+    for (const model of priority) expect((error as Error).message).toContain(model);
+  });
+
+  it("probes remembered models again when every candidate is marked exhausted", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(payment())
+      .mockResolvedValueOnce(payment())
+      .mockResolvedValueOnce(payment())
+      .mockResolvedValueOnce(json(completion("topped up")));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    await client.chat({ model: "auto", messages: user }).catch(() => undefined);
+    const response = await client.chat({ model: "auto", messages: user });
+
+    expect(response.choices[0]?.message.content).toBe("topped up");
+    expect(sentModels(fetchMock)[3]).toBe("GigaChat-2-Max");
+  });
+
+  it("does not treat other failures as a reason to switch models", async () => {
+    const fetchMock = vi.fn(async () => new Response("boom", { status: 500 }));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    const error = await client.chat({ model: "auto", messages: user }).catch((e: unknown) => e as Error);
+
+    expect(error).not.toBeInstanceOf(InsufficientTokensError);
+    expect((error as Error).message).toContain("500");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("starts the default order with the best tier, Ultra", async () => {
+    const fetchMock = vi.fn(async () => json(completion("ok")));
+    const { client } = setup(fetchMock as unknown as typeof fetch);
+
+    await client.chat({ model: "auto", messages: user });
+
+    expect(sentModels(fetchMock)).toEqual(["GigaChat-3-Ultra"]);
+  });
+
+  it("skips a model the account or host does not serve (404) and goes on, down Ultra, Max, Pro, Lite", async () => {
+    const missing = (): Response => json({ status: 404, message: "No such model" }, 404);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(missing())
+      .mockResolvedValueOnce(payment())
+      .mockResolvedValueOnce(payment())
+      .mockResolvedValueOnce(json(completion("lite answered")));
+    const { client } = setup(fetchMock as unknown as typeof fetch);
+
+    const response = await client.chat({ model: "auto", messages: user });
+
+    expect(sentModels(fetchMock)).toEqual(["GigaChat-3-Ultra", "GigaChat-2-Max", "GigaChat-2-Pro", "GigaChat-2"]);
+    expect(response.choices[0]?.message.content).toBe("lite answered");
+  });
+
+  it("does not skip a missing model when it was asked for explicitly", async () => {
+    const fetchMock = vi.fn(async () => json({ status: 404, message: "No such model" }, 404));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    const error = (await client
+      .chat({ model: "GigaChat-3-Ultra", messages: user })
+      .catch((e: unknown) => e)) as Error;
+
+    expect(error.message).toContain("404");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("separates exhausted models from unavailable ones in the final error", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(json({ status: 404, message: "No such model" }, 404))
+      .mockResolvedValue(payment());
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: ["Ultra", "Max", "Pro"] });
+
+    const error = await client.chat({ model: "auto", messages: user }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AllModelsExhaustedError);
+    expect((error as AllModelsExhaustedError).models).toEqual(["Max", "Pro"]);
+    expect((error as AllModelsExhaustedError).unavailable).toEqual(["Ultra"]);
+    expect((error as Error).message).toMatch(/exhausted.*Max, Pro/);
+    expect((error as Error).message).toMatch(/Not available.*Ultra/);
+  });
+
+  it("says plainly that no listed model is available when all of them answer 404", async () => {
+    const fetchMock = vi.fn(async () => json({ status: 404, message: "No such model" }, 404));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: ["A", "B"] });
+
+    const error = (await client.chat({ model: "auto", messages: user }).catch((e: unknown) => e)) as Error;
+
+    expect(error).not.toBeInstanceOf(AllModelsExhaustedError);
+    expect(error.message).toMatch(/None of the models.*A, B/);
+  });
+
+  it("falls through when streaming too", async () => {
+    const sse = `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: "hi" }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(payment())
+      .mockResolvedValueOnce(new Response(sse, { status: 200 }));
+    const { client } = setup(fetchMock as unknown as typeof fetch, { modelPriority: priority });
+
+    const parts: string[] = [];
+    for await (const chunk of client.stream({ model: "auto", messages: user })) {
+      parts.push(chunk.choices[0]?.delta.content ?? "");
+    }
+
+    expect(parts.join("")).toBe("hi");
+    expect(sentModels(fetchMock)).toEqual(["GigaChat-2-Max", "GigaChat-2-Pro"]);
+  });
+});
+
+describe("GigaChatClient network failures", () => {
+  const unreachable = (): Promise<Response> =>
+    Promise.reject(new TypeError("fetch failed", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } }));
+
+  it("names the host and the cause instead of a bare 'fetch failed'", async () => {
+    const { client } = setup(vi.fn(unreachable) as unknown as typeof fetch);
+
+    const error = (await client.chat({ model: "GigaChat", messages: user }).catch((e: unknown) => e)) as Error;
+
+    expect(error).toBeInstanceOf(GigaChatNetworkError);
+    expect(error.message).toContain("https://api.test");
+    expect(error.message).toContain("UND_ERR_CONNECT_TIMEOUT");
+    expect(error.message).toMatch(/VPN/);
+    expect(error.message).not.toContain("tok-1");
+  });
+
+  it("does not try the next model when the host is unreachable", async () => {
+    const fetchMock = vi.fn(unreachable);
+    const { client } = setup(fetchMock as unknown as typeof fetch);
+
+    await client.chat({ model: "auto", messages: user }).catch(() => undefined);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

@@ -20,9 +20,17 @@ export interface GigaChatConfig {
   baseUrl: string | undefined;
   /** OAuth token endpoint; defaults to the ngw.devices.sberbank.ru host. */
   authUrl: string | undefined;
+  /** Models tried in order for `auto`; undefined keeps the built-in order. */
+  modelPriority: string[] | undefined;
 }
 
 const DEFAULT_SCOPE = "GIGACHAT_API_PERS";
+
+/** Comma separated model ids, best first; blank entries are dropped and an empty list means "use the default". */
+export function parseModelPriority(value: string | undefined): string[] | undefined {
+  const models = (value ?? "").split(",").map((model) => model.trim()).filter(Boolean);
+  return models.length > 0 ? models : undefined;
+}
 
 /** Client id and secret win; a ready Base64 authorization key is the fallback. */
 function readCredentials(env: Record<string, string | undefined>): string {
@@ -50,5 +58,6 @@ export function loadConfig(env: Record<string, string | undefined>): GigaChatCon
     verifySsl: (env["GIGACHAT_VERIFY_SSL"] || "true").toLowerCase() !== "false",
     baseUrl: env["GIGACHAT_BASE_URL"] || undefined,
     authUrl: env["GIGACHAT_AUTH_URL"] || undefined,
+    modelPriority: parseModelPriority(env["GIGACHAT_MODEL_PRIORITY"]),
   };
 }

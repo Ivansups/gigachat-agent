@@ -22,6 +22,7 @@ describe("GigaChat opencode plugin", () => {
     expect(provider?.npm).toBe("@ai-sdk/openai-compatible");
     expect(provider?.options.baseURL).toContain("/v1");
     expect(Object.keys(provider?.models ?? {})).toContain("GigaChat");
+    expect(Object.keys(provider?.models ?? {})).toContain("auto");
 
     const custom = { provider: { [PROVIDER_ID]: { models: { Mine: {} } } } };
     await h.config?.(custom as never);

@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import type { ChatRequest, ChatResponse } from "@gigachat-agent/core";
+import { AUTO_MODEL, type ChatRequest, type ChatResponse } from "@gigachat-agent/core";
 import type { OpencodeRunOptions, OpencodeRunResult } from "./opencode.js";
 
 const GIGACHAT_PROVIDER = "GigaChat (Sberbank)";
@@ -101,12 +101,18 @@ export function createHandlers(deps: HandlerDeps): Handlers {
         (files ?? []).map(async (file) => `### File: ${file}\n${await deps.readFile(inside(file))}`),
       );
       const content = [...blocks, prompt].join("\n\n");
+      const modelId = (model ?? DEFAULT_ASK_MODEL).split("/").at(-1) as string;
+      const isAuto = modelId === AUTO_MODEL;
       const response = await deps.client.chat({
-        model: (model ?? DEFAULT_ASK_MODEL).split("/").at(-1) as string,
+        model: modelId,
         messages: [...(system ? [{ role: "system" as const, content: system }] : []), { role: "user", content }],
       });
       const answer = response.choices[0]?.message.content ?? "";
-      return response.truncated ? `${answer}\n\n[note: input was truncated to fit the context budget]` : answer;
+      const notes = [
+        ...(isAuto ? [`[model: ${response.model}]`] : []),
+        ...(response.truncated ? ["[note: input was truncated to fit the context budget]"] : []),
+      ];
+      return [answer, ...notes].join("\n\n");
     },
 
     runAgent: (args) => agentRun(args),

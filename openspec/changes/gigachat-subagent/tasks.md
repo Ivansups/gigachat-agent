@@ -52,3 +52,8 @@
 - [ ] 7.2 Register and smoke-test in Codex, Cursor and opencode (`mcp` section)
 - [x] 7.3 Document limits found (tool calling quality, context size) and recommended task types
 - [x] 7.4 Write README in Russian: install, keys, registration per client, safety defaults, troubleshooting
+
+## 8. Automatic model choice
+
+- [x] 8.1 `model: "auto"` walks a priority list (default GigaChat-3-Ultra, 2-Max, 2-Pro, 2) and moves on only on HTTP 402 (tokens used up) or 404 (model not served, auto mode only); exhausted models are remembered for 5 minutes; distinct `InsufficientTokensError` / `AllModelsExhaustedError`; `GIGACHAT_MODEL_PRIORITY` (verified live that `auto` answers in Claude Code and opencode; the 402 fall-through is covered by tests only, no model on the test account is out of tokens)
+- [x] 8.2 Readable network errors (`GigaChatNetworkError`: host and cause, VPN hint) and a documented VPN workflow; verified that under an always-on VPN the old host is stable and the new host `api.giga.chat` answered `GigaChat-3-Ultra` once, then timed out (route dependent)

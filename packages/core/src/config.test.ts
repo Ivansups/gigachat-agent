@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultCacheDir, loadConfig } from "./config.js";
+import { defaultCacheDir, loadConfig, parseModelPriority } from "./config.js";
 
 describe("defaultCacheDir", () => {
   it("honours an explicit override, then XDG, then ~/.cache", () => {
@@ -87,5 +87,22 @@ describe("loadConfig", () => {
 
   it("fails clearly when credentials are missing", () => {
     expect(() => loadConfig({})).toThrow(/GIGACHAT_CLIENT_ID/);
+  });
+});
+
+describe("model priority", () => {
+  it("parses a comma separated list, trimming blanks", () => {
+    expect(parseModelPriority(" GigaChat-2-Max, GigaChat-2 ,,")).toEqual(["GigaChat-2-Max", "GigaChat-2"]);
+  });
+
+  it("leaves the default in place when unset or empty", () => {
+    expect(parseModelPriority(undefined)).toBeUndefined();
+    expect(parseModelPriority(" , ")).toBeUndefined();
+  });
+
+  it("is read from GIGACHAT_MODEL_PRIORITY", () => {
+    const config = loadConfig({ GIGACHAT_CREDENTIALS: "a2V5", GIGACHAT_MODEL_PRIORITY: "A,B" });
+
+    expect(config.modelPriority).toEqual(["A", "B"]);
   });
 });
