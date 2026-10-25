@@ -1,363 +1,83 @@
 # gigachat-agent
 
-GigaChat (Сбер) как сабагент для любых агентов: Claude Code, Codex, Cursor и самого opencode.
+GigaChat (Сбер) как основная модель или сабагент в **opencode** и как сабагент в **Claude Code**. Работает и из Codex и Cursor через MCP.
 
-Два способа использования:
+> **Важно: нужен сертификат Минцифры, но только файлом.** Серверы GigaChat подписаны корневым сертификатом Минцифры (Russian Trusted Root CA), которого нет в системе. Скачайте его в обычный файл и укажите путь в `GIGACHAT_CA_BUNDLE_FILE`. **Ставить его в систему (связку ключей macOS, хранилище Windows) не нужно и не стоит**: файл использует только этот инструмент, остальные программы ему не доверяют. Без него будет ошибка `The TLS certificate ... is not trusted (SELF_SIGNED_CERT_IN_CHAIN)` с подсказкой, что делать. Как получить: [docs/install/setup.md](docs/install/setup.md).
 
-- **MCP-сервер (stdio)** с инструментами `ask`, `run_agent`, `continue_session`, `list_models`. Живёт только вместе с сессией клиента, постоянных процессов нет.
-- **Плагин opencode**, который добавляет провайдера `GigaChat (Sberbank)`, чтобы использовать GigaChat прямо в opencode.
+Что внутри:
 
-Оба используют общую библиотеку `core`: OAuth с файловым кэшем токена, TLS, клиент GigaChat, конвертер OpenAI ↔ GigaChat.
+- **Плагин opencode**: провайдер `GigaChat (Sberbank)`, его можно выбрать основной моделью или сделать сабагентом.
+- **MCP-сервер** (stdio): инструменты `ask`, `run_agent`, `continue_session`, `list_models`. Живёт только вместе с сессией клиента, постоянных процессов нет.
+- **Автовыбор модели** `auto`: берёт лучшую из доступных (Ultra, Max, Pro, Lite) и переходит к следующей, когда у модели закончились токены.
 
 ## Статус
 
-Проверено вживую на macOS (Node 24, opencode 1.18.29, Claude Code 2.1): чат и сабагенты в Claude Code и в opencode, `ask`, `run_agent` (чтение и запись), вызов инструментов GigaChat. Windows **не проверялся**, инструкция для него составлена по документации и помечена отдельно. Подробности в разделе «Что проверено».
+Проверено вживую на macOS (Node 24, opencode 1.18.29, Claude Code 2.1). Windows **не проверялся**, инструкция для него составлена по документации. Полный список проверенного и нет: [справочник](docs/reference.md#что-проверено).
 
-## Требования
+## Что нужно
 
-- Node.js 24+ и `pnpm` (только для сборки)
-- `opencode` в `PATH` (нужен для `run_agent` и плагина)
-- Ключи GigaChat из кабинета Sber Developers: Client ID и Client Secret (либо готовый Authorization key). Временный `access_token` не подходит
-- Корневой сертификат Минцифры (см. шаг 2)
+- Node.js 24+ (для MCP-сервера) и `opencode` в `PATH` (для плагина и `run_agent`)
+- Client ID и Client Secret GigaChat из кабинета Sber Developers
+- Корневой сертификат Минцифры (файлом, в систему ставить не нужно)
 
-## Установка: macOS
+Ставится из npm (`opencode-gigachat` и `gigachat-agent-mcp`): клонировать и собирать ничего не нужно. Из исходников: [docs/install/setup.md](docs/install/setup.md#установка-из-исходников-для-разработки).
 
-### 1. Сборка
+## Начать за 3 шага
 
-```bash
-git clone https://github.com/Ivansups/gigachat-agent.git
-cd gigachat-agent
-pnpm install
-pnpm build
+### Шаг 1. Общая установка (один раз)
+
+Сертификат Минцифры и файл `~/.config/gigachat/.env` с ключами: [docs/install/setup.md](docs/install/setup.md) (macOS и Windows).
+
+### Шаг 2. Выбрать, где использовать
+
+**opencode (основная модель или сабагент).** Добавьте плагин в `~/.config/opencode/opencode.json`, затем сохраните ключ и проверьте:
+
+```json
+{ "plugin": ["opencode-gigachat"] }
 ```
 
-Сборка создаёт `packages/opencode-plugin/dist/gigachat-plugin.js` и `packages/mcp/dist/cli.mjs`.
-
-### 2. Сертификат Минцифры
-
-Серверы GigaChat подписаны корневым сертификатом Минцифры, которого нет в системных хранилищах. Без него будет ошибка `unknown certificate verification error` (или `self signed certificate in certificate chain`).
-
-Сертификат кладётся в обычный файл и подключается через `GIGACHAT_CA_BUNDLE_FILE`. В системную связку ключей ничего ставить не нужно, и лучше не ставить: корневой сертификат в системе доверяет всё подряд.
-
 ```bash
-mkdir -p ~/.config/gigachat && cd ~/.config/gigachat
-curl -fsSLO https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt
-curl -fsSLO https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt
-{ cat russian_trusted_root_ca_pem.crt; echo; cat russian_trusted_sub_ca_pem.crt; echo; } | grep -v '^$' > russian_ca_bundle.pem
+opencode providers login --provider "GigaChat (Sberbank)"
+opencode run --model "GigaChat (Sberbank)/auto" -- "ответь одним словом: привет"
 ```
 
-Сверьте отпечаток с gosuslugi.ru/crt: `openssl x509 -in russian_trusted_root_ca_pem.crt -noout -fingerprint -sha256`.
+Основной моделью выбирается в `/models`, сабагентом задаётся в `opencode.json`. Все детали и конфиг сабагента: [docs/install/opencode.md](docs/install/opencode.md).
 
-Удаление: удалите папку `~/.config/gigachat` и строку `GIGACHAT_CA_BUNDLE_FILE`.
-
-### 3. Ключи
-
-Один файл `~/.config/gigachat/.env` читают и MCP-сервер, и плагин opencode, переменные в оболочке экспортировать не нужно:
+**Claude Code (сабагент):**
 
 ```bash
-cat > ~/.config/gigachat/.env <<'EOF'
-GIGACHAT_CLIENT_ID=ваш-client-id
-GIGACHAT_CLIENT_SECRET=ваш-client-secret
-GIGACHAT_SCOPE=GIGACHAT_API_PERS
-GIGACHAT_CA_BUNDLE_FILE=/Users/ИМЯ/.config/gigachat/russian_ca_bundle.pem
-EOF
-chmod 600 ~/.config/gigachat/.env
-```
-
-Подставьте свой путь в `GIGACHAT_CA_BUNDLE_FILE` (абсолютный). Ключи не вводятся в чат и не коммитятся. `.env` из рабочей папки намеренно не читается: сервер работает в чужих репозиториях, и такой файл мог бы отключить проверку TLS или включить `bash`.
-
-### 4. Claude Code (MCP)
-
-```bash
-claude mcp add --scope user gigachat -- node "$PWD/packages/mcp/dist/cli.mjs"
+claude mcp add --scope user gigachat -- npx -y gigachat-agent-mcp
 claude mcp list
 ```
 
-В списке должно быть `gigachat ... ✔ Connected`. Дальше в чате: «спроси у GigaChat …» или «запусти gigachat run_agent …».
+Дальше достаточно сказать «спроси у GigaChat …», а для постоянного сабагента положить файл `.claude/agents/gigachat.md`. Файл-образец, нужные разрешения и что требуется для `run_agent`: [docs/install/claude-code.md](docs/install/claude-code.md).
 
-### 5. opencode (плагин)
+### Шаг 3. Выбрать модель
 
-```bash
-mkdir -p ~/.config/opencode/plugins
-cp packages/opencode-plugin/dist/gigachat-plugin.js ~/.config/opencode/plugins/
-opencode providers login --provider "GigaChat (Sberbank)"
-```
+Модель `auto` сама берёт лучшую доступную. Как её настроить и как выбрать конкретную: [docs/config/models.md](docs/config/models.md).
 
-Логин спросит scope и **Authorization key** (Base64 от `Client_ID:Client_Secret`). Если у вас есть только Client ID и Secret:
+## Документация
 
-```bash
-printf '%s:%s' "CLIENT_ID" "CLIENT_SECRET" | base64
-```
+**Установка и работа с клиентами** (`docs/install/`)
 
-Проверка:
-
-```bash
-opencode run --model "GigaChat (Sberbank)/GigaChat" -- "ответь одним словом: привет"
-```
-
-### 6. MCP-сервер внутри opencode (по желанию)
-
-Это отдельный способ: инструменты GigaChat внутри opencode на любой другой модели.
-
-```json
-{ "mcp": { "gigachat": { "type": "local", "command": ["node", "/абсолютный/путь/к/gigachat-agent/packages/mcp/dist/cli.mjs"] } } }
-```
-
-## Установка: Windows
-
-> Не проверялось на Windows. Команды написаны для PowerShell по документации Node, Claude Code и opencode. Если что-то не сработает, откройте issue с текстом ошибки.
-
-### 1. Сборка
-
-```powershell
-git clone https://github.com/Ivansups/gigachat-agent.git
-cd gigachat-agent
-pnpm install
-pnpm build
-```
-
-Нужен Node.js 24+ (`winget install OpenJS.NodeJS`) и `pnpm` (`npm i -g pnpm`).
-
-### 2. Сертификат Минцифры
-
-```powershell
-$dir = "$env:USERPROFILE\.config\gigachat"
-New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt -OutFile "$dir\root.crt"
-Invoke-WebRequest https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt  -OutFile "$dir\sub.crt"
-((Get-Content "$dir\root.crt") + (Get-Content "$dir\sub.crt")) | Where-Object { $_ -ne "" } | Set-Content -Encoding ascii "$dir\russian_ca_bundle.pem"
-```
-
-Сверьте отпечаток с gosuslugi.ru/crt: откройте `root.crt` двойным щелчком и посмотрите «Отпечаток» на вкладке «Состав». В хранилище Windows сертификат не устанавливайте.
-
-Удаление: `Remove-Item -Recurse "$env:USERPROFILE\.config\gigachat"`.
-
-### 3. Ключи
-
-Создайте файл `%USERPROFILE%\.config\gigachat\.env`:
-
-```
-GIGACHAT_CLIENT_ID=ваш-client-id
-GIGACHAT_CLIENT_SECRET=ваш-client-secret
-GIGACHAT_SCOPE=GIGACHAT_API_PERS
-GIGACHAT_CA_BUNDLE_FILE=C:/Users/ИМЯ/.config/gigachat/russian_ca_bundle.pem
-```
-
-В пути используйте прямые слэши `/`. Права доступа Windows этим файлом не ограничивает (в отличие от `chmod 600` на macOS), поэтому держите профиль закрытым от других пользователей.
-
-### 4. Claude Code (MCP)
-
-```powershell
-claude mcp add --scope user gigachat -- node "$PWD\packages\mcp\dist\cli.mjs"
-claude mcp list
-```
-
-### 5. opencode (плагин)
-
-```powershell
-New-Item -ItemType Directory -Force "$env:USERPROFILE\.config\opencode\plugins" | Out-Null
-Copy-Item packages\opencode-plugin\dist\gigachat-plugin.js "$env:USERPROFILE\.config\opencode\plugins\"
-opencode providers login --provider "GigaChat (Sberbank)"
-```
-
-Authorization key из Client ID и Secret:
-
-```powershell
-[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("CLIENT_ID:CLIENT_SECRET"))
-```
-
-### Известные риски на Windows
-
-- `run_agent` запускает `opencode` без оболочки. Если `opencode` у вас установлен как `.cmd`-обёртка (через `npm i -g`), запуск может не найти файл. Тогда установите нативный бинарник opencode или используйте только `ask`, которому opencode не нужен.
-- Сигналы завершения (SIGTERM) на Windows работают иначе, дочерний `opencode` при закрытии сервера может остаться висеть.
-
-## Выбор модели
-
-Модель можно задать на каждом уровне:
-
-| Где | Как |
+| Файл | О чём |
 |---|---|
-| Чат opencode | `/models` → `GigaChat (Sberbank)`, или `opencode run --model "GigaChat (Sberbank)/GigaChat-2-Max"`, или ключ `model` в `opencode.json` |
-| Сабагент opencode | `"model": "GigaChat (Sberbank)/GigaChat-2-Pro"` в описании агента |
-| MCP `ask` и `run_agent` | параметр `model`; по умолчанию `ask` берёт `GigaChat`, `run_agent` берёт `GIGACHAT_AGENT_MODEL` |
-| Сабагент Claude Code | в его промпте: «всегда передавай `model: auto`» |
+| [setup.md](docs/install/setup.md) | Общая установка: что ставится из npm, сертификат Минцифры, ключи; macOS и Windows; установка из исходников |
+| [opencode.md](docs/install/opencode.md) | GigaChat в opencode: основной моделью и сабагентом |
+| [claude-code.md](docs/install/claude-code.md) | GigaChat сабагентом в Claude Code, разрешения, частые ошибки |
 
-### Автовыбор: `auto`
+**Настройка** (`docs/config/`)
 
-Модель `auto` перебирает список **от лучшей модели к худшей** и использует первую, у которой остались токены. По умолчанию порядок по уровням, от сильного к слабому: Ultra (`GigaChat-3-Ultra`), Max (`GigaChat-2-Max`), Pro (`GigaChat-2-Pro`), Lite (`GigaChat-2`). Свой порядок задаётся в `.env`:
-
-```
-GIGACHAT_MODEL_PRIORITY=GigaChat-3-Ultra,GigaChat-2-Max,GigaChat-2-Pro,GigaChat-2
-```
-
-Использование: `model: "auto"` в `ask` и `run_agent`, `GigaChat (Sberbank)/auto` в opencode, `GIGACHAT_AGENT_MODEL=GigaChat (Sberbank)/auto` для `run_agent` по умолчанию. `ask` с `auto` добавляет в конец ответа строку `[model: ...]` с реально отвечавшей моделью.
-
-Как это работает и почему не спутать с другими ошибками:
-
-- Переключение происходит только в двух случаях. HTTP 402: по документации Сбера, «закончились токены модели, к которой выполняется запрос». HTTP 404 «No such model»: модель не отдаётся этому аккаунту или хосту, её просто пропускают (в явно заданной модели 404 остаётся ошибкой). Остальные ошибки переключения не вызывают: 429 (слишком много параллельных запросов, обрабатывается повторами с паузой), 401, 413 и 422 (слишком большой или неверный запрос), 5xx.
-- Ultra живёт на новом хосте `api.giga.chat`; на старом `gigachat.devices.sberbank.ru` он отвечает 404 и в `auto` пропускается, тогда первым отвечает Max. Как включить Ultra и как это ведёт себя под VPN, см. «Работа через VPN и новый хост».
-- Клиент запоминает исчерпанную модель на 5 минут и не проверяет её при каждом вызове. Если исчерпаны все модели из списка, проверка идёт заново.
-- Если токены кончились у явно заданной модели, будет ошибка `InsufficientTokensError` с текстом «GigaChat tokens are exhausted for model "X" (HTTP 402 Payment Required)». Если кончились у всех доступных моделей списка, будет `AllModelsExhaustedError` с двумя списками: «токены закончились (402)» и «недоступны (404)». Если все модели списка недоступны (404), ошибка говорит именно об этом, а не о токенах.
-- Остаток токенов (`GET /balance`) для выбора не используется: у тарифа pay-as-you-go он отвечает 403, а надёжным сигналом остаётся ответ 402 на сам запрос.
-- Проверено вживую (Freemium: Ultra, Max, Pro, Lite): по умолчанию отвечает Max после пропуска Ultra (404); без Max отвечает Pro; с Ultra и Lite в списке отвечает Lite; список из несуществующих моделей даёт понятную ошибку. Работает через MCP в Claude Code и в opencode. Переход при настоящем 402 вживую не наблюдался (на аккаунте у всех моделей есть токены), он проверен тестами по поведению из документации.
-
-## Работа через VPN и новый хост
-
-Проверено на машине, которая всегда работает через VPN с выходом в Германии.
-
-| Адрес | Под VPN | Что даёт |
-|---|---|---|
-| `https://ngw.devices.sberbank.ru:9443` (OAuth, токен) | работает стабильно | выдаёт токен для обоих хостов API |
-| `https://gigachat.devices.sberbank.ru/api/v1` (API по умолчанию) | работает стабильно | Max, Pro, Lite (`GigaChat-2-Max`, `GigaChat-2-Pro`, `GigaChat-2`), старые алиасы |
-| `https://api.giga.chat/v1` (новый API) | **нестабильно, зависит от маршрута VPN** | всё то же плюс `GigaChat-3-Ultra` |
-
-Что удалось установить на новом хосте: один раз тот же токен и `model: auto` вернули ответ от `GigaChat-3-Ultra` за секунду, то есть токен, имя модели и путь `/v1` подходят. Следующие запросы упирались в таймаут подключения (`UND_ERR_CONNECT_TIMEOUT`, около 10 секунд): сервер принимает TCP, но не отвечает на TLS ClientHello с SNI `api.giga.chat`. Поэтому вердикт такой: пользоваться можно, но без гарантий, пока VPN не отдаёт стабильный маршрут. Проверять `curl`-ом нельзя: он даёт ложный отказ, ориентируйтесь на результат инструмента.
-
-### Как включить новый хост
-
-1. В `~/.config/gigachat/.env` (macOS) или `%USERPROFILE%\.config\gigachat\.env` (Windows) добавьте одну строку:
-
-   ```
-   GIGACHAT_BASE_URL=https://api.giga.chat/v1
-   ```
-
-   Файл читают и MCP-сервер, и плагин opencode, больше нигде ничего менять не нужно. Токен берётся с прежнего `GIGACHAT_AUTH_URL`.
-2. Перезапустите клиент: новая сессия Claude Code (MCP-сервер стартует заново) или новый запуск opencode.
-3. Проверьте: вызовите `ask` с `model: "auto"`. В конце ответа будет `[model: ...]`; при доступном Ultra там `GigaChat-3-Ultra`. Без доступа вы получите ошибку (см. ниже).
-
-### Как вернуться на старый хост
-
-Удалите строку `GIGACHAT_BASE_URL` (или закомментируйте) и перезапустите клиент. Для одной команды без правки файла: `GIGACHAT_BASE_URL=https://gigachat.devices.sberbank.ru/api/v1 opencode run ...`. Переменная окружения сильнее файла.
-
-### Что видно при недоступном хосте
-
-Ошибка называет адрес и причину, а не просто `fetch failed`:
-
-```
-Cannot reach GigaChat at https://api.giga.chat (UND_ERR_CONNECT_TIMEOUT). Check the network or VPN, and the GIGACHAT_BASE_URL setting; ...
-```
-
-- Ожидание около 10 секунд на каждый запрос, пока хост не отвечает. Если новый хост у вас часто «пропадает», держите старый.
-- Автоперебор хостов намеренно не делается: каждая попытка к закрытому хосту стоила бы этих 10 секунд, а ошибки сети стали бы неотличимы от ошибок моделей.
-- Сетевая ошибка не заставляет `auto` переходить к следующей модели: переход только при 402 (токены) и 404 (модель не отдаётся).
-
-### Сценарий «и Ultra, и надёжность»
-
-Держите Ultra в приоритетах (он по умолчанию первый) и новый хост в `.env`. Если хост доступен, ответит Ultra. Если нет, `ask` вернёт сетевую ошибку: тогда уберите `GIGACHAT_BASE_URL` или повторите запрос позже. Модель при недоступности хоста не подменяется автоматически, чтобы вы не получали ответ от другой модели молча.
-
-## Использование сабагентом
-
-### Claude Code
-
-Положите файл `.claude/agents/gigachat.md` в проект (или `~/.claude/agents/gigachat.md` для всех проектов):
-
-```markdown
----
-name: gigachat
-description: Делегирует узкие задачи (ревью диффа, резюме, тесты, тексты) GigaChat. Используй, когда нужен дешёвый второй взгляд.
-tools: mcp__gigachat__ask, mcp__gigachat__run_agent
----
-Ты тонкая прослойка. Для вопросов без доступа к файлам вызывай `mcp__gigachat__ask`, для задач с файлами проекта — `mcp__gigachat__run_agent`. Верни ответ GigaChat дословно и без добавлений.
-```
-
-После этого: «используй сабагента gigachat, пусть проверит этот дифф».
-
-### opencode
-
-В `opencode.json` проекта или в `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "agent": {
-    "giga-reviewer": {
-      "description": "Ревью и резюме на GigaChat",
-      "mode": "subagent",
-      "model": "GigaChat (Sberbank)/GigaChat",
-      "tools": { "write": false, "edit": false, "bash": false }
-    }
-  }
-}
-```
-
-Основной агент вызывает его инструментом `task` (`subagent_type: giga-reviewer`).
-
-## Переменные
-
-Читаются из окружения и из `~/.config/gigachat/.env` (дополнительный файл можно указать через `GIGACHAT_ENV_FILE`). Уже заданные в окружении переменные файл не перезаписывает.
-
-| Переменная | По умолчанию | Назначение |
-|---|---|---|
-| `GIGACHAT_CLIENT_ID` | нет | Client ID из кабинета Sber Developers |
-| `GIGACHAT_CLIENT_SECRET` | нет | Client Secret оттуда же (обязателен вместе с Client ID) |
-| `GIGACHAT_CREDENTIALS` | нет | Готовый Authorization key (Base64 от `Client ID:Client Secret`); используется, только если пара выше не задана |
-| `GIGACHAT_SCOPE` | `GIGACHAT_API_PERS` | Scope по официальной доке: `GIGACHAT_API_PERS` (физлица), `GIGACHAT_API_B2B` (ИП и юрлица, платные пакеты), `GIGACHAT_API_CORP` (ИП и юрлица, pay-as-you-go) |
-| `GIGACHAT_BASE_URL` | `https://gigachat.devices.sberbank.ru/api/v1` | Адрес API. С 17.07.2026 в доке указан новый адрес `https://api.giga.chat`, старый остаётся доступным. Для нового задайте `https://api.giga.chat/v1` (под VPN нестабильно, см. «Работа через VPN и новый хост») |
-| `GIGACHAT_AUTH_URL` | `https://ngw.devices.sberbank.ru:9443/api/v2/oauth` | Адрес выдачи токена |
-| `GIGACHAT_CA_BUNDLE_FILE` | нет | Путь к PEM с корневым сертификатом Минцифры |
-| `GIGACHAT_VERIFY_SSL` | `true` | `false` отключает проверку TLS, только для диагностики |
-| `GIGACHAT_CACHE_DIR` | `~/.cache/gigachat` | Папка кэша токена (файл `token.json`, права 0600 где поддерживаются) |
-| `GIGACHAT_MODEL_PRIORITY` | `GigaChat-3-Ultra,GigaChat-2-Max,GigaChat-2-Pro,GigaChat-2` | Порядок моделей для `auto`, от лучшей к худшей |
-| `GIGACHAT_AGENT_MODEL` | `GigaChat (Sberbank)/GigaChat` | Модель по умолчанию для `run_agent` |
-| `GIGACHAT_ALLOW_BASH` | нет | `1` разрешает `bash` в запусках с `allow_write` (см. «Безопасность») |
-| `GIGACHAT_ENV_FILE` | нет | Дополнительный env-файл |
-
-Если ключ в хранилище opencode и в окружении разные, приоритет у хранилища. Провайдер в opencode включается только при ключе в его хранилище (`opencode providers login`), одних переменных окружения для этого недостаточно: без ключа opencode обращается к виртуальному адресу `api.gigachat.local` и пишет `Cannot connect to API`.
-
-## Инструменты MCP
-
-| Инструмент | Что делает |
+| Файл | О чём |
 |---|---|
-| `ask(prompt, system?, model?, files?)` | Прямой запрос к GigaChat без агента. `files` читаются только внутри рабочей папки сервера |
-| `run_agent(prompt, model?, cwd?, agent?, allow_write?, timeout_ms?)` | Агентная задача через одноразовый `opencode run`. Возвращает результат и `session_id` |
-| `continue_session(session_id, prompt, ...)` | Продолжает прошлую сессию `run_agent` |
-| `list_models()` | Модели GigaChat и opencode в виде `provider/model` |
+| [models.md](docs/config/models.md) | Выбор модели, автовыбор `auto`, схема переключения, ошибки токенов |
+| [vpn-and-hosts.md](docs/config/vpn-and-hosts.md) | Работа под VPN, новый хост `api.giga.chat`, как его включить |
 
-Модель для `run_agent` можно указать любую из `opencode models`, не только GigaChat.
+**Справочник**
 
-Другие клиенты (шаблоны, в этих клиентах не проверялись):
-
-```toml
-# Codex: ~/.codex/config.toml
-[mcp_servers.gigachat]
-command = "node"
-args = ["/абсолютный/путь/к/gigachat-agent/packages/mcp/dist/cli.mjs"]
-```
-
-Cursor: тот же `command`/`args` в `mcp.json`.
-
-## Безопасность
-
-- `run_agent` по умолчанию **только читает**: `edit`, `write` и `bash` запрещены через `OPENCODE_CONFIG_CONTENT`. Флаг `--auto` не используется никогда.
-- `allow_write: true` разрешает только `edit` и `write`. `bash` остаётся запрещённым, пока оператор сам не задаст `GIGACHAT_ALLOW_BASH=1` в окружении сервера. Флаг из вызова инструмента оболочку не открывает.
-- `cwd` и файлы для `ask` должны лежать внутри папки, где запущен сервер. Ссылки (symlink) на файлы вне её отклоняются.
-- У каждого запуска есть таймаут (по умолчанию 10 минут, максимум час), вывод ограничен по размеру, процесс завершается при отмене запроса.
-- Кэш токена хранится с правами 0600. Ключ и токен не попадают в сообщения об ошибках.
-
-## Ограничения GigaChat
-
-- Слабее Claude в многошаговой работе с инструментами. Надёжно подходит для узких задач: ревью диффа, резюме, генерация тестов и текстов по описанию.
-- За одно сообщение передаётся один вызов функции (`tools` превращаются в `functions`).
-- Схемы инструментов упрощаются (без `anyOf`/`oneOf`, ограниченная вложенность, короткие описания). Некорректный вызов функции повторяется один раз с подсказкой.
-- Контекстное окно по официальным страницам моделей: 128 000 токенов (GigaChat 2, 2 Pro, 2 Max, 2 Lite). Лимит вывода в доке не указан, в плагине стоит осторожные 4096. Бюджет входа сервера: 200 000 символов. Модели первого поколения (`GigaChat`, `GigaChat-Pro`, `GigaChat-Max`) недоступны, запросы к ним перенаправляются на второе поколение.
-- `opencode run` при ошибке провайдера может надолго замолчать, поэтому таймауты обязательны. В скриптах запускайте его с закрытым stdin (`< /dev/null`), иначе он может зависнуть в ожидании ввода.
-
-## Что проверено
-
-На macOS, вживую с настоящим ключом:
-
-- OAuth, `list_models`, `ask`.
-- Claude Code: `ask` из чата, `ask` через сабагента, `run_agent` из чата, через сабагента и с `allow_write`.
-- opencode: простой ответ, вызов инструмента `read`, делегирование сабагенту на GigaChat через `task`.
-- Записанный реальный поток `opencode run --format json` (фикстура `packages/mcp/src/__fixtures__`).
-- Без `allow_write` файл не создаётся.
-
-Не проверено:
-
-- Windows целиком.
-- MCP-регистрация в Codex и Cursor.
-- Явное сообщение об отказе при записи в режиме read-only: проверено лишь, что файл не создаётся и что `opencode debug agent build` показывает `edit`, `write`, `bash` запрещёнными.
-- Дочерние процессы `opencode` завершаются при отмене, таймауте и штатном закрытии сервера (SIGTERM/SIGINT/закрытие stdin). При жёстком убийстве сервера (SIGKILL) завершить их он уже не может.
-- Встроенного набора корневых сертификатов нет и не планируется: файл нужно получить самому из официального источника.
+| Файл | О чём |
+|---|---|
+| [reference.md](docs/reference.md) | Переменные, инструменты MCP, безопасность, ограничения, что проверено, решения по устройству |
 
 ## Разработка
 
@@ -366,9 +86,3 @@ pnpm lint && pnpm typecheck && pnpm test
 ```
 
 Спецификации и план: `openspec/changes/gigachat-subagent/`. Тесты пишутся раньше кода.
-
-## Решения по устройству
-
-- Форка opencode нет: плагин и MCP-слой поверх установленного `opencode`.
-- `undici` в бандл плагина не включён: он ломает загрузку плагина под Bun. Под Bun TLS применяется через опцию `tls` встроенного `fetch`, под Node через `undici`.
-- Токен кэшируется в файле с блокировкой, поэтому короткоживущие процессы не обновляют его каждый раз.
