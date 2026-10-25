@@ -2,6 +2,7 @@ import { mkdtemp, readFile, stat, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GigaChatNetworkError } from "../errors.js";
 import { TokenProvider, type TokenProviderOptions } from "./token.js";
 
 const KEY = "c2VjcmV0LWtleQ==";
@@ -163,5 +164,15 @@ describe("TokenProvider", () => {
     await provider.invalidate();
 
     expect(await provider.getToken()).toBe("tok-2");
+  });
+  it("names the auth host and the cause when the token request cannot connect", async () => {
+    const fetchMock = vi.fn(() => Promise.reject(new TypeError("fetch failed", { cause: { code: "SELF_SIGNED_CERT_IN_CHAIN" } })));
+    const provider = make(fetchMock as unknown as typeof fetch);
+
+    const error = (await provider.getToken().catch((e: unknown) => e)) as Error;
+
+    expect(error).toBeInstanceOf(GigaChatNetworkError);
+    expect(error.message).toContain("https://ngw.devices.sberbank.ru:9443");
+    expect(error.message).toContain("GIGACHAT_CA_BUNDLE_FILE");
   });
 });

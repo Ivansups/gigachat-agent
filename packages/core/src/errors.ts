@@ -30,6 +30,14 @@ export class AllModelsExhaustedError extends Error {
   }
 }
 
+/** TLS failures that mean "this certificate chain is not trusted", fixed by supplying the Russian Trusted Root CA. */
+const CERTIFICATE_CODES = new Set([
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+]);
+
 /** The request never got an HTTP answer (DNS, TCP, TLS or timeout); `fetch failed` alone hides which. */
 export class GigaChatNetworkError extends Error {
   constructor(
@@ -37,8 +45,16 @@ export class GigaChatNetworkError extends Error {
     readonly code: string,
   ) {
     super(
-      `Cannot reach GigaChat at ${origin} (${code}). Check the network or VPN, and the GIGACHAT_BASE_URL setting; a host that is blocked on the current route fails this way.`,
+      CERTIFICATE_CODES.has(code)
+        ? `The TLS certificate of ${origin} is not trusted (${code}). Save the Russian Trusted Root CA (Ministry of Digital Development) to a file and set GIGACHAT_CA_BUNDLE_FILE to its path; do not install it system-wide.`
+        : `Cannot reach GigaChat at ${origin} (${code}). Check the network or VPN, and the GIGACHAT_BASE_URL setting; a host that is blocked on the current route fails this way.`,
     );
     this.name = "GigaChatNetworkError";
   }
+}
+
+/** Turns a failed `fetch` into a readable error naming the host and the cause code. */
+export function toNetworkError(error: unknown, url: string): GigaChatNetworkError {
+  const cause = (error as { cause?: { code?: string } }).cause;
+  return new GigaChatNetworkError(new URL(url).origin, cause?.code ?? (error as Error).message);
 }

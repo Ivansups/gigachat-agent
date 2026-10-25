@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { toNetworkError } from "../errors.js";
 
 const DEFAULT_AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
 const REFRESH_MARGIN_MS = 5 * 60_000;
@@ -124,6 +125,8 @@ export class TokenProvider {
         Accept: "application/json",
       },
       body: new URLSearchParams({ scope: this.options.scope }).toString(),
+    }).catch((error: unknown) => {
+      throw toNetworkError(error, this.authUrl);
     });
     if (!response.ok) {
       throw new Error(`GigaChat OAuth failed: HTTP ${response.status}`);

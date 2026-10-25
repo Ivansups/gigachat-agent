@@ -1,5 +1,5 @@
 import { applyInputBudget } from "./convert/guard.js";
-import { AllModelsExhaustedError, GigaChatApiError, GigaChatNetworkError, InsufficientTokensError } from "./errors.js";
+import { AllModelsExhaustedError, GigaChatApiError, InsufficientTokensError, toNetworkError } from "./errors.js";
 import { fromGigaChatChunk, fromGigaChatResponse, toGigaChatRequest } from "./convert/convert.js";
 import type { ChatChunk, ChatRequest, ChatResponse, GigaMessage, GigaResponse } from "./types.js";
 
@@ -155,8 +155,7 @@ export class GigaChatClient {
           Accept: "application/json",
         },
       }).catch((error: unknown) => {
-        const cause = (error as { cause?: { code?: string } }).cause;
-        throw new GigaChatNetworkError(new URL(this.baseUrl).origin, cause?.code ?? (error as Error).message);
+        throw toNetworkError(error, this.baseUrl);
       });
       if (response.status === 401 && !refreshed) {
         refreshed = true;
