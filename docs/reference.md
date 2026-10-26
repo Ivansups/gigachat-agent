@@ -18,7 +18,7 @@
 | `GIGACHAT_VERIFY_SSL` | `true` | `false` отключает проверку TLS, только для диагностики |
 | `GIGACHAT_CACHE_DIR` | `~/.cache/gigachat` | Папка кэша токена (файл `token.json`, права 0600 где поддерживаются) |
 | `GIGACHAT_MODEL_PRIORITY` | `GigaChat-3-Ultra,GigaChat-2-Max,GigaChat-2-Pro,GigaChat-2` | Порядок моделей для `auto`, от лучшей к худшей, см. [Выбор модели](config/models.md) |
-| `GIGACHAT_AGENT_MODEL` | `GigaChat (Sberbank)/GigaChat` | Модель по умолчанию для `run_agent` |
+| `GIGACHAT_AGENT_MODEL` | `GigaChat (Sberbank)/GigaChat-2-Max` | Модель по умолчанию для `run_agent` |
 | `GIGACHAT_ALLOW_BASH` | нет | `1` разрешает `bash` в запусках с `allow_write` (см. «Безопасность») |
 | `GIGACHAT_ENV_FILE` | нет | Дополнительный env-файл |
 

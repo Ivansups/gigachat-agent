@@ -66,7 +66,7 @@ async function main(): Promise<void> {
     readFile: (path) => readInsideRoot(root, path),
     realpath,
     root,
-    agentModel: process.env["GIGACHAT_AGENT_MODEL"] ?? "GigaChat (Sberbank)/GigaChat",
+    agentModel: process.env["GIGACHAT_AGENT_MODEL"] ?? "GigaChat (Sberbank)/GigaChat-2-Max",
   });
 
   const server = createServer(handlers);
