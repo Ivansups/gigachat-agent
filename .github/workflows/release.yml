@@ -63,7 +63,7 @@ jobs:
         run: npm install -g npm@11.12.1
       - name: Publish the verified tarballs to npm
         run: |
-          for t in pack/*.tgz; do npm publish "$t" --provenance; done
+          for t in ./pack/*.tgz; do npm publish "$t" --provenance; done
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
