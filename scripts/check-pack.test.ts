@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // @ts-expect-error plain .mjs script without type declarations
 import { checkPack } from "./check-pack.mjs";
 
-type Entry = { path: string; mode: number };
+type Entry = { path: string; mode: number; type?: string };
 type Manifest = { dependencies?: Record<string, string>; bin?: Record<string, string> };
 const check = checkPack as (entries: Entry[], manifest: Manifest) => string[];
 
@@ -43,6 +43,21 @@ describe("checkPack", () => {
   it("reports a bin target that is not executable", () => {
     const entries = good.map((e) => (e.path.endsWith("cli.mjs") ? file(e.path, 0o644) : e));
     expect(check(entries, manifest)).toContain("bin tool is not executable: package/dist/cli.mjs");
+  });
+
+  it("ignores directory entries", () => {
+    const entries = [...good, { path: "package/dist/", mode: 0o755, type: "d" }];
+    expect(check(entries, manifest)).toEqual([]);
+  });
+
+  it("reports a path containing whitespace", () => {
+    const entries = [...good, file("package/src/a b.ts")];
+    expect(check(entries, manifest)).toContain("whitespace in path: package/src/a b.ts");
+  });
+
+  it("reports non-regular entries such as symlinks", () => {
+    const entries = [...good, { path: "package/dist/link", mode: 0o777, type: "l" }];
+    expect(check(entries, manifest)).toContain("non-regular entry (l): package/dist/link");
   });
 
   it("reports a bin target that is missing", () => {
