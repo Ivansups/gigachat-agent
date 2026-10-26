@@ -26,3 +26,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm build
+      - name: Check npm tarballs
+        run: |
+          mkdir pack
+          pnpm -C packages/mcp pack --pack-destination ../../pack
+          pnpm -C packages/opencode-plugin pack --pack-destination ../../pack
+          node scripts/check-pack.mjs pack/*.tgz
