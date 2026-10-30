@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@gigachat-agent/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@opencode-ai/plugin": [
+        "fixes/opencode-2.1.4/node_modules/@opencode-ai/plugin/dist/index.d.ts"
+      ],
+      "@modelcontextprotocol/sdk/*": [
+        "fixes/opencode-2.1.4/node_modules/@modelcontextprotocol/sdk/dist/esm/*"
+      ],
+      "zod": [
+        "fixes/opencode-2.1.4/node_modules/zod/index.d.ts"
+      ],
+      "undici": [
+        "fixes/opencode-2.1.4/node_modules/undici/types/index.d.ts"
+      ]
+    },
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "src/**/*.ts",
+    "vitest.config.ts"
+  ]
+}

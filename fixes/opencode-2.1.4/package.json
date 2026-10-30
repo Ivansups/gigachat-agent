@@ -1,0 +1,30 @@
+{
+  "name": "gigachat-opencode-2-1-4-fix",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/plugin.js",
+  "exports": "./dist/plugin.js",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "doctor": "node doctor.mjs",
+    "test": "vitest run src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test:opencode": "node smoke-opencode.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "undici": "^8.12.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.4.3",
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  }
+}
